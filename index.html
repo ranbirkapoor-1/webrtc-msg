@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Messenger</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔒 Serverless Messenger</h1>
+            <div class="status" id="connectionStatus">Disconnected</div>
+        </header>
+
+        <main>
+            <div class="connection-panel">
+                <div class="user-controls">
+                    <input type="text" id="roomId" placeholder="Enter room ID or generate one">
+                    <button id="createRoom">Create Room</button>
+                    <button id="joinRoom">Join Room</button>
+                </div>
+                
+                <div class="connection-info" id="connectionInfo" style="display: none;">
+                    <p>Room ID: <span id="currentRoomId"></span></p>
+                    <button id="copyRoomId">Copy Room ID</button>
+                </div>
+            </div>
+
+            <div class="chat-container" id="chatContainer" style="display: none;">
+                <div class="messages" id="messages"></div>
+                
+                <div class="input-container">
+                    <input type="text" id="messageInput" placeholder="Type your message..." maxlength="1000">
+                    <button id="sendMessage">Send</button>
+                </div>
+            </div>
+
+            <div class="media-controls" id="mediaControls" style="display: none;">
+                <button id="startCall">📞 Start Call</button>
+                <button id="endCall" style="display: none;">🔴 End Call</button>
+                <button id="toggleMute">🎤 Mute</button>
+                <button id="toggleVideo">📹 Video</button>
+            </div>
+
+            <div class="video-container" id="videoContainer" style="display: none;">
+                <video id="localVideo" muted autoplay playsinline></video>
+                <video id="remoteVideo" autoplay playsinline></video>
+            </div>
+        </main>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
