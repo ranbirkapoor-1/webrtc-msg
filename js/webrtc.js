@@ -84,30 +84,31 @@ export class WebRTCManager {
     }
 
     async handleAnswer(answer) {
-        if (!this.peerConnection) return;
-        
-        // Only set remote description if we're in the correct state
-        if (this.peerConnection.signalingState === 'have-local-offer') {
-            await this.peerConnection.setRemoteDescription(answer);
-        } else {
-            console.warn('Ignoring answer - wrong signaling state:', this.peerConnection.signalingState);
-        }
-    }
+          if (!this.peerConnection) return;
 
-    async addIceCandidate(candidate) {
-        if (!this.peerConnection) return;
-        
-        // Only add ICE candidates if we have remote description set
-        if (this.peerConnection.remoteDescription) {
-            try {
-                await this.peerConnection.addIceCandidate(candidate);
-            } catch (error) {
-                console.warn('Failed to add ICE candidate:', error);
-            }
-        } else {
-            console.warn('Ignoring ICE candidate - no remote description yet');
-        }
-    }
+          // Only set remote description if we're in the correct state                                                                                                              
+          if (this.peerConnection.signalingState === 'have-local-offer') {
+              await this.peerConnection.setRemoteDescription(answer);
+          } else {
+              console.warn('Ignoring answer - wrong signaling state:', this.peerConnection.signalingState);
+          }
+      }
+
+      async addIceCandidate(candidate) {
+          if (!this.peerConnection) return;
+
+          // Only add ICE candidates if we have remote description set                                                                                                              
+          if (this.peerConnection.remoteDescription) {
+              try {
+                  await this.peerConnection.addIceCandidate(candidate);
+              } catch (error) {
+                  console.warn('Failed to add ICE candidate:', error);
+              }
+          } else {
+              console.warn('Ignoring ICE candidate - no remote description yet');
+          }
+      }
+
 
     sendMessage(message) {
         if (this.dataChannel && this.dataChannel.readyState === 'open') {
