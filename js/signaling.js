@@ -8,6 +8,7 @@ export class SignalingManager {
         this.onSignalingMessage = null;
         this.isConnected = false;
         this.app = null;
+        this.processedMessages = new Set();
     }
 
     async initialize() {
@@ -64,9 +65,13 @@ export class SignalingManager {
             const key = snapshot.key;
             const value = snapshot.val();
             
-            if (key === 'offer' || key === 'answer' || key === 'candidate') {
-                if (this.onSignalingMessage) {
-                    this.onSignalingMessage(key, value);
+            if (key === 'offer' || key === 'answer') {
+                const messageId = `${key}-${JSON.stringify(value)}`;
+                if (!this.processedMessages.has(messageId)) {
+                    this.processedMessages.add(messageId);
+                    if (this.onSignalingMessage) {
+                        this.onSignalingMessage(key, value);
+                    }
                 }
             }
         });
@@ -75,9 +80,18 @@ export class SignalingManager {
             const key = snapshot.key;
             const value = snapshot.val();
             
-            if (key === 'offer' || key === 'answer' || key === 'candidate') {
+            if (key === 'offer' || key === 'answer') {
+                const messageId = `${key}-${JSON.stringify(value)}`;
+                if (!this.processedMessages.has(messageId)) {
+                    this.processedMessages.add(messageId);
+                    if (this.onSignalingMessage) {
+                        this.onSignalingMessage(key, value);
+                    }
+                }
+            } else if (key === 'candidates') {
+                // Handle ICE candidates separately as they can be multiple
                 if (this.onSignalingMessage) {
-                    this.onSignalingMessage(key, value);
+                    this.onSignalingMessage('candidate', value);
                 }
             }
         });
@@ -117,6 +131,7 @@ export class SignalingManager {
         }
         this.currentRoomId = null;
         this.roomRef = null;
+        this.processedMessages.clear();
     }
 
     disconnect() {
