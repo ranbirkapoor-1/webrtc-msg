@@ -34,7 +34,16 @@ class MessengerApp {
             toggleVideo: document.getElementById('toggleVideo'),
             videoContainer: document.getElementById('videoContainer'),
             localVideo: document.getElementById('localVideo'),
-            remoteVideo: document.getElementById('remoteVideo')
+            remoteVideo: document.getElementById('remoteVideo'),
+            liveTab: document.getElementById('liveTab'),
+            offlineTab: document.getElementById('offlineTab'),
+            offlineMessages: document.getElementById('offlineMessages'),
+            offlineMessagesList: document.getElementById('offlineMessagesList'),
+            liveInputContainer: document.getElementById('liveInputContainer'),
+            offlineInputContainer: document.getElementById('offlineInputContainer'),
+            senderName: document.getElementById('senderName'),
+            offlineMessageInput: document.getElementById('offlineMessageInput'),
+            sendOfflineMessage: document.getElementById('sendOfflineMessage')
         };
     }
 
@@ -51,6 +60,14 @@ class MessengerApp {
         this.elements.endCall.addEventListener('click', () => this.endCall());
         this.elements.toggleMute.addEventListener('click', () => this.toggleMute());
         this.elements.toggleVideo.addEventListener('click', () => this.toggleVideo());
+        
+        // Offline messaging
+        this.elements.liveTab.addEventListener('click', () => this.switchToLiveTab());
+        this.elements.offlineTab.addEventListener('click', () => this.switchToOfflineTab());
+        this.elements.sendOfflineMessage.addEventListener('click', () => this.sendOfflineMessage());
+        this.elements.offlineMessageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.sendOfflineMessage();
+        });
     }
 
     setupWebRTCCallbacks() {
@@ -79,22 +96,34 @@ class MessengerApp {
 
     setupSignalingCallbacks() {
         this.signaling.onSignalingMessage = async (type, data) => {
+            console.log(`📨 Received ${type} message:`, data);
+            
             switch (type) {
                 case 'offer':
                     if (!this.isInitiator) {
+                        console.log('🔄 Processing offer as joiner...');
                         await this.webrtc.createPeerConnection();
-                        const answer = await this.webrtc.createAnswer(data);
+                        const answer = await this.webrtc.createAnswer(data.sdp);
+                        console.log('✅ Answer created:', answer);
                         await this.signaling.sendAnswer(answer);
+                        console.log('✅ Answer sent');
+                    } else {
+                        console.log('⚠️ Ignoring offer (I am initiator)');
                     }
                     break;
                 
                 case 'answer':
                     if (this.isInitiator) {
-                        await this.webrtc.handleAnswer(data);
+                        console.log('🔄 Processing answer as initiator...');
+                        await this.webrtc.handleAnswer(data.sdp);
+                        console.log('✅ Answer processed');
+                    } else {
+                        console.log('⚠️ Ignoring answer (I am joiner)');
                     }
                     break;
                 
                 case 'candidate':
+                    console.log('🔄 Processing ICE candidate...');
                     await this.webrtc.addIceCandidate(data);
                     break;
             }
@@ -103,10 +132,12 @@ class MessengerApp {
 
     async initialize() {
         try {
+            console.log('🔄 Initializing Firebase...');
             await this.signaling.initialize();
+            console.log('✅ Firebase initialized successfully');
             this.updateConnectionStatus('ready');
         } catch (error) {
-            console.error('Failed to initialize:', error);
+            console.error('❌ Failed to initialize:', error);
             this.updateConnectionStatus('error');
             alert('Failed to initialize Firebase. Please check your configuration.');
         }
@@ -114,21 +145,26 @@ class MessengerApp {
 
     async createRoom() {
         try {
+            console.log('🔄 Creating room...');
             this.isInitiator = true;
             await this.webrtc.createPeerConnection();
+            console.log('✅ WebRTC peer connection created');
             
             const roomId = await this.signaling.createRoom();
             this.currentRoomId = roomId;
+            console.log('✅ Room created with ID:', roomId);
             
             this.elements.currentRoomId.textContent = roomId;
             this.elements.connectionInfo.style.display = 'block';
             this.updateConnectionStatus('waiting');
 
             const offer = await this.webrtc.createOffer();
+            console.log('✅ Offer created:', offer);
             await this.signaling.sendOffer(offer);
+            console.log('✅ Offer sent to Firebase');
             
         } catch (error) {
-            console.error('Failed to create room:', error);
+            console.error('❌ Failed to create room:', error);
             alert('Failed to create room');
         }
     }
@@ -141,7 +177,10 @@ class MessengerApp {
         }
 
         try {
+            console.log('🔄 Checking if room exists:', roomId);
             const roomExists = await this.signaling.checkRoomExists(roomId);
+            console.log('Room exists:', roomExists);
+            
             if (!roomExists) {
                 alert('Room not found');
                 return;
@@ -149,14 +188,16 @@ class MessengerApp {
 
             this.isInitiator = false;
             this.currentRoomId = roomId;
+            console.log('🔄 Joining room:', roomId);
             
             await this.signaling.joinRoom(roomId, false);
             this.elements.currentRoomId.textContent = roomId;
             this.elements.connectionInfo.style.display = 'block';
             this.updateConnectionStatus('connecting');
+            console.log('✅ Successfully joined room');
             
         } catch (error) {
-            console.error('Failed to join room:', error);
+            console.error('❌ Failed to join room:', error);
             alert('Failed to join room');
         }
     }
@@ -206,9 +247,17 @@ class MessengerApp {
         return div.innerHTML;
     }
 
-    showChatInterface() {
+    async showChatInterface() {
         this.elements.chatContainer.style.display = 'block';
         this.elements.mediaControls.style.display = 'block';
+        
+        // Load any offline messages when showing chat interface
+        await this.loadOfflineMessages();
+        
+        // Set up listener for new offline messages
+        this.signaling.setupOfflineMessageListener((messageData) => {
+            this.displayOfflineMessage(messageData);
+        });
     }
 
     updateConnectionStatus(status) {
@@ -255,6 +304,94 @@ class MessengerApp {
             if (videoTrack) {
                 videoTrack.enabled = !videoTrack.enabled;
                 this.elements.toggleVideo.textContent = videoTrack.enabled ? '📹 Video' : '📹 Video Off';
+            }
+        }
+    }
+
+    switchToLiveTab() {
+        this.elements.liveTab.classList.add('active');
+        this.elements.offlineTab.classList.remove('active');
+        this.elements.messages.style.display = 'block';
+        this.elements.offlineMessages.style.display = 'none';
+        this.elements.liveInputContainer.style.display = 'flex';
+        this.elements.offlineInputContainer.style.display = 'none';
+    }
+
+    switchToOfflineTab() {
+        this.elements.liveTab.classList.remove('active');
+        this.elements.offlineTab.classList.add('active');
+        this.elements.messages.style.display = 'none';
+        this.elements.offlineMessages.style.display = 'block';
+        this.elements.liveInputContainer.style.display = 'none';
+        this.elements.offlineInputContainer.style.display = 'flex';
+    }
+
+    async sendOfflineMessage() {
+        const message = this.elements.offlineMessageInput.value.trim();
+        const senderName = this.elements.senderName.value.trim() || 'Anonymous';
+        
+        if (!message) {
+            alert('Please enter a message');
+            return;
+        }
+
+        try {
+            await this.signaling.sendOfflineMessage(message, senderName);
+            this.elements.offlineMessageInput.value = '';
+            
+            // Show confirmation
+            const button = this.elements.sendOfflineMessage;
+            const originalText = button.textContent;
+            button.textContent = '✅ Sent!';
+            setTimeout(() => {
+                button.textContent = originalText;
+            }, 2000);
+        } catch (error) {
+            console.error('Failed to send offline message:', error);
+            alert('Failed to send message');
+        }
+    }
+
+    async loadOfflineMessages() {
+        try {
+            const messages = await this.signaling.getOfflineMessages();
+            this.elements.offlineMessagesList.innerHTML = '';
+            
+            if (messages.length === 0) {
+                this.elements.offlineMessagesList.innerHTML = '<p style="color: #6c757d; font-style: italic;">No messages yet.</p>';
+                return;
+            }
+            
+            messages.forEach(message => {
+                this.displayOfflineMessage(message);
+            });
+        } catch (error) {
+            console.error('Failed to load offline messages:', error);
+        }
+    }
+
+    displayOfflineMessage(messageData) {
+        const messageElement = document.createElement('div');
+        messageElement.className = 'offline-message';
+        
+        const time = new Date(messageData.timestamp).toLocaleString();
+        messageElement.innerHTML = `
+            <div class="sender">${this.escapeHtml(messageData.senderName)}</div>
+            <div class="text">${this.escapeHtml(messageData.text)}</div>
+            <div class="time">${time}</div>
+        `;
+        
+        this.elements.offlineMessagesList.appendChild(messageElement);
+        
+        // Add notification badge to offline tab if we're on live tab
+        if (this.elements.liveTab.classList.contains('active')) {
+            this.elements.offlineTab.style.position = 'relative';
+            if (!this.elements.offlineTab.querySelector('.badge')) {
+                const badge = document.createElement('span');
+                badge.className = 'badge';
+                badge.textContent = '●';
+                badge.style.cssText = 'color: #dc3545; font-size: 1.5rem; position: absolute; top: 5px; right: 10px;';
+                this.elements.offlineTab.appendChild(badge);
             }
         }
     }

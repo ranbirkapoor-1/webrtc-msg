@@ -3,53 +3,244 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebRTC Messenger</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>p2p-chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'gray-950': '#0a0a0a',
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-    <div class="container">
-        <header>
-            <h1>🔒 Serverless Messenger</h1>
-            <div class="status" id="connectionStatus">Disconnected</div>
+<body class="min-h-screen bg-black text-white font-mono overflow-x-hidden">
+    <div class="min-h-screen flex flex-col max-w-4xl mx-auto">
+        <!-- Header -->
+        <header class="border-b border-gray-800 p-4">
+            <div class="flex items-center justify-between">
+                <h1 class="text-xl font-medium">p2p-chat</h1>
+                <div id="connectionStatus" class="flex items-center space-x-2 text-sm text-gray-400">
+                    <div class="w-2 h-2 bg-red-500 rounded-full"></div>
+                    <span>offline</span>
+                </div>
+            </div>
         </header>
 
-        <main>
-            <div class="connection-panel">
-                <div class="user-controls">
-                    <input type="text" id="roomId" placeholder="Enter room ID or generate one">
-                    <button id="createRoom">Create Room</button>
-                    <button id="joinRoom">Join Room</button>
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col">
+            <!-- Connection Panel -->
+            <div class="border-b border-gray-800 p-4">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">room key</label>
+                        <input 
+                            type="password" 
+                            id="roomPassword" 
+                            placeholder="enter room key..." 
+                            autocomplete="off"
+                            class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-gray-500 transition-colors font-mono"
+                        >
+                    </div>
+                    <button 
+                        id="joinRoom"
+                        class="w-full bg-white text-black py-2 px-4 rounded font-medium hover:bg-gray-200 transition-colors"
+                    >
+                        connect
+                    </button>
                 </div>
                 
-                <div class="connection-info" id="connectionInfo" style="display: none;">
-                    <p>Room ID: <span id="currentRoomId"></span></p>
-                    <button id="copyRoomId">Copy Room ID</button>
+                <div class="connection-info hidden mt-4 p-3 bg-gray-900 rounded border border-gray-700" id="connectionInfo">
+                    <div class="space-y-2 text-sm">
+                        <p class="text-gray-400">room: <span id="currentRoomId" class="text-white font-mono"></span></p>
+                        <p class="text-green-400">e2e encrypted</p>
+                        <button 
+                            id="leaveRoom"
+                            class="text-red-400 hover:text-red-300 transition-colors text-sm"
+                        >
+                            disconnect
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <div class="chat-container" id="chatContainer" style="display: none;">
-                <div class="messages" id="messages"></div>
+            <!-- Chat Container -->
+            <div id="chatContainer" class="hidden flex-1 flex flex-col min-h-0">
+                <!-- Tabs -->
+                <div class="flex border-b border-gray-800">
+                    <button class="tab flex-1 py-3 px-4 text-sm text-gray-400 border-b border-transparent hover:text-gray-300 transition-colors" id="offlineTab">
+                        store
+                    </button>
+                    <button class="tab flex-1 py-3 px-4 text-sm text-white border-b border-white" id="onlineTab">
+                        direct
+                    </button>
+                </div>
                 
-                <div class="input-container">
-                    <input type="text" id="messageInput" placeholder="Type your message..." maxlength="1000">
-                    <button id="sendMessage">Send</button>
+                <!-- Chat Sections -->
+                <div class="flex-1 flex flex-col min-h-0">
+                    <!-- Online Chat Section -->
+                    <div class="online-section flex-1 flex flex-col min-h-0" id="onlineSection">
+                        <div class="flex justify-between items-center p-3 border-b border-gray-800 text-sm">
+                            <span class="text-gray-400">direct p2p</span>
+                            <div class="connection-indicator flex items-center space-x-2">
+                                <div id="statusDot" class="w-2 h-2 bg-red-500 rounded-full"></div>
+                                <span id="connectionText" class="text-gray-400">offline</span>
+                            </div>
+                        </div>
+                        
+                        <div id="onlineMessages" class="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
+                            <div id="onlineMessagesList" class="space-y-2">
+                                <!-- Placeholder messages - will be cleared when real messages arrive -->
+                                <div class="placeholder-messages opacity-30">
+                                    <!-- Received message (left side) -->
+                                    <div class="message remote">
+                                        <div class="message-wrapper">
+                                            <div class="message-content placeholder-content">ready?</div>
+                                            <div class="message-time">--:--</div>
+                                        </div>
+                                    </div>
+                                    <!-- Sent message (right side) -->
+                                    <div class="message local">
+                                        <div class="message-wrapper">
+                                            <div class="message-content placeholder-content">yes, connected</div>
+                                            <div class="message-time">--:--</div>
+                                        </div>
+                                    </div>
+                                    <!-- Received message (left side) -->
+                                    <div class="message remote">
+                                        <div class="message-wrapper">
+                                            <div class="message-content placeholder-content">let's sync the deployment</div>
+                                            <div class="message-time">--:--</div>
+                                        </div>
+                                    </div>
+                                    <div class="text-center mt-4">
+                                        <div class="text-xs text-gray-600 italic">placeholder conversation</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-3 border-t border-gray-800" id="onlineInputContainer">
+                            <div class="flex space-x-2">
+                                <input 
+                                    type="text" 
+                                    id="onlineMessageInput" 
+                                    placeholder="direct message..." 
+                                    maxlength="500"
+                                    class="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-gray-500 transition-colors font-mono text-sm"
+                                >
+                                <button 
+                                    id="sendOnlineMessage"
+                                    class="bg-white text-black px-4 py-2 rounded font-medium hover:bg-gray-200 transition-colors text-sm"
+                                >
+                                    send
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Offline Chat Section -->
+                    <div class="offline-section hidden flex-1 flex flex-col min-h-0" id="offlineSection">
+                        <div class="flex justify-between items-center p-3 border-b border-gray-800 text-sm">
+                            <span class="text-gray-400">persistent store</span>
+                            <span class="text-xs text-gray-500">queued until delivery</span>
+                        </div>
+                        
+                        <div id="messages" class="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
+                            <div class="space-y-2">
+                                <!-- Placeholder messages - will be cleared when real messages arrive -->
+                                <div class="placeholder-messages opacity-30">
+                                    <!-- Received message (left side) -->
+                                    <div class="message remote">
+                                        <div class="message-wrapper">
+                                            <div class="message-content placeholder-content">stored message for async</div>
+                                            <div class="message-time">--:--</div>
+                                        </div>
+                                    </div>
+                                    <!-- Sent message (right side) -->
+                                    <div class="message local">
+                                        <div class="message-wrapper">
+                                            <div class="message-content placeholder-content">got it, will process</div>
+                                            <div class="message-time">--:--</div>
+                                        </div>
+                                    </div>
+                                    <div class="text-center mt-4">
+                                        <div class="text-xs text-gray-600 italic">placeholder conversation</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-3 border-t border-gray-800" id="offlineInputContainer">
+                            <div class="flex space-x-2">
+                                <input 
+                                    type="text" 
+                                    id="messageInput" 
+                                    placeholder="store message..." 
+                                    maxlength="1000"
+                                    class="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-gray-500 transition-colors font-mono text-sm"
+                                >
+                                <button 
+                                    id="sendMessage"
+                                    class="bg-white text-black px-4 py-2 rounded font-medium hover:bg-gray-200 transition-colors text-sm"
+                                >
+                                    store
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="media-controls" id="mediaControls" style="display: none;">
-                <button id="startCall">📞 Start Call</button>
-                <button id="endCall" style="display: none;">🔴 End Call</button>
-                <button id="toggleMute">🎤 Mute</button>
-                <button id="toggleVideo">📹 Video</button>
+            <!-- Media Controls -->
+            <div id="mediaControls" class="hidden border-t border-gray-800 p-3">
+                <div class="flex justify-center gap-2">
+                    <button 
+                        id="startCall"
+                        class="bg-green-600 text-white px-3 py-2 rounded font-medium hover:bg-green-700 transition-colors text-sm"
+                    >
+                        call
+                    </button>
+                    <button 
+                        id="endCall"
+                        class="hidden bg-red-600 text-white px-3 py-2 rounded font-medium hover:bg-red-700 transition-colors text-sm"
+                    >
+                        end
+                    </button>
+                    <button 
+                        id="toggleMute"
+                        class="bg-gray-700 text-white px-3 py-2 rounded font-medium hover:bg-gray-600 transition-colors text-sm"
+                    >
+                        mute
+                    </button>
+                    <button 
+                        id="toggleVideo"
+                        class="bg-gray-700 text-white px-3 py-2 rounded font-medium hover:bg-gray-600 transition-colors text-sm"
+                    >
+                        video
+                    </button>
+                </div>
             </div>
 
-            <div class="video-container" id="videoContainer" style="display: none;">
-                <video id="localVideo" muted autoplay playsinline></video>
-                <video id="remoteVideo" autoplay playsinline></video>
+            <!-- Video Container -->
+            <div id="videoContainer" class="hidden border-t border-gray-800 p-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="relative aspect-video bg-gray-900 rounded overflow-hidden border border-gray-700">
+                        <video id="localVideo" muted autoplay playsinline class="w-full h-full object-cover"></video>
+                        <div class="absolute bottom-2 left-2 bg-black/80 text-white px-2 py-1 rounded text-xs">you</div>
+                    </div>
+                    <div class="relative aspect-video bg-gray-900 rounded overflow-hidden border border-gray-700">
+                        <video id="remoteVideo" autoplay playsinline class="w-full h-full object-cover"></video>
+                        <div class="absolute bottom-2 left-2 bg-black/80 text-white px-2 py-1 rounded text-xs">peer</div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
 
-    <script type="module" src="js/app.js"></script>
+    <script type="module" src="js/enhanced-app.js"></script>
 </body>
 </html>
