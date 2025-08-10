@@ -58,7 +58,8 @@ class EnhancedSecureMessenger {
             toggleVideo: document.getElementById('toggleVideo'),
             videoContainer: document.getElementById('videoContainer'),
             localVideo: document.getElementById('localVideo'),
-            remoteVideo: document.getElementById('remoteVideo')
+            remoteVideo: document.getElementById('remoteVideo'),
+            closeVideoCall: document.getElementById('closeVideoCall')
         };
     }
 
@@ -88,6 +89,18 @@ class EnhancedSecureMessenger {
         this.elements.toggleMute.addEventListener('click', () => this.toggleMute());
         this.elements.toggleVideo.addEventListener('click', () => this.toggleVideo());
         
+        // Close video call button
+        if (this.elements.closeVideoCall) {
+            this.elements.closeVideoCall.addEventListener('click', () => this.endCall());
+        }
+        
+        // ESC key to close video call
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.elements.videoContainer && !this.elements.videoContainer.classList.contains('hidden')) {
+                this.endCall();
+            }
+        });
+        
         this.elements.offlineTab.addEventListener('click', () => this.switchToOfflineTab());
         this.elements.onlineTab.addEventListener('click', () => this.switchToOnlineTab());
     }
@@ -113,8 +126,12 @@ class EnhancedSecureMessenger {
         };
 
         this.webrtc.onRemoteStream = (stream) => {
+            console.log('📺 Setting remote video stream');
             this.elements.remoteVideo.srcObject = stream;
-            this.elements.videoContainer.style.display = 'block';
+            this.elements.videoContainer.style.display = 'flex';
+            this.elements.videoContainer.classList.remove('hidden');
+            // Ensure video plays
+            this.elements.remoteVideo.play().catch(e => console.warn('Remote video play failed:', e));
         };
 
         this.webrtc.onMessageReceived = async (data) => {
@@ -1014,9 +1031,14 @@ class EnhancedSecureMessenger {
             
             const stream = await this.webrtc.startMediaCall(true, true);
             this.elements.localVideo.srcObject = stream;
-            this.elements.videoContainer.style.display = 'block';
+            this.elements.videoContainer.style.display = 'flex';
+            this.elements.videoContainer.classList.remove('hidden');
             this.elements.startCall.style.display = 'none';
             this.elements.endCall.style.display = 'inline-block';
+            this.elements.toggleMute.style.display = 'inline-block';
+            this.elements.toggleVideo.style.display = 'inline-block';
+            // Ensure local video plays
+            this.elements.localVideo.play().catch(e => console.warn('Local video play failed:', e));
             
             // Update button states
             this.updateMediaControlsState();
@@ -1047,8 +1069,11 @@ class EnhancedSecureMessenger {
         this.elements.localVideo.srcObject = null;
         this.elements.remoteVideo.srcObject = null;
         this.elements.videoContainer.style.display = 'none';
+        this.elements.videoContainer.classList.add('hidden');
         this.elements.startCall.style.display = 'inline-block';
         this.elements.endCall.style.display = 'none';
+        this.elements.toggleMute.style.display = 'none';
+        this.elements.toggleVideo.style.display = 'none';
         
         // Reset button states
         this.elements.toggleMute.textContent = 'mute';

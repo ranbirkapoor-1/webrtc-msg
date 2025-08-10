@@ -64,10 +64,23 @@ export class WebRTCManager {
 
         // Handle remote stream
         this.peerConnection.ontrack = (event) => {
-            console.log('📺 Remote stream received');
-            const remoteStream = event.streams[0];
-            if (this.onRemoteStream) {
-                this.onRemoteStream(remoteStream);
+            console.log('📺 Remote stream received:', event);
+            console.log('📹 Tracks:', event.track);
+            console.log('🎦 Streams:', event.streams);
+            
+            if (event.streams && event.streams[0]) {
+                const remoteStream = event.streams[0];
+                console.log('✅ Setting remote stream with tracks:', remoteStream.getTracks().length);
+                if (this.onRemoteStream) {
+                    this.onRemoteStream(remoteStream);
+                }
+            } else {
+                console.warn('⚠️ No streams in track event, creating manual stream');
+                // Create a stream with the track if no stream is provided
+                const remoteStream = new MediaStream([event.track]);
+                if (this.onRemoteStream) {
+                    this.onRemoteStream(remoteStream);
+                }
             }
         };
 
@@ -127,12 +140,6 @@ export class WebRTCManager {
             this.setupDataChannel(channel);
         };
 
-        this.peerConnection.ontrack = (event) => {
-            console.log('🎥 Track received:', event.streams);
-            if (this.onRemoteStream) {
-                this.onRemoteStream(event.streams[0]);
-            }
-        };
     }
 
     createDataChannel() {

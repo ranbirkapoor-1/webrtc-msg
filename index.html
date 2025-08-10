@@ -96,14 +96,42 @@
                     <div class="online-section flex-1 flex flex-col min-h-0" id="onlineSection">
                         <div class="flex justify-between items-center p-3 border-b border-gray-800 text-sm">
                             <span class="text-gray-400">direct p2p</span>
-                            <div class="connection-indicator flex items-center space-x-2">
-                                <div id="statusDot" class="w-2 h-2 bg-red-500 rounded-full"></div>
-                                <span id="connectionText" class="text-gray-400">offline</span>
+                            <div class="flex items-center space-x-3">
+                                <div class="connection-indicator flex items-center space-x-2">
+                                    <div id="statusDot" class="w-2 h-2 bg-red-500 rounded-full"></div>
+                                    <span id="connectionText" class="text-gray-400">offline</span>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button
+                                        id="startCall"
+                                        class="bg-green-600 text-white px-3 py-1 rounded font-medium hover:bg-green-700 transition-colors text-xs"
+                                    >
+                                        call
+                                    </button>
+                                    <button
+                                        id="endCall"
+                                        class="hidden bg-red-600 text-white px-3 py-1 rounded font-medium hover:bg-red-700 transition-colors text-xs"
+                                    >
+                                        end
+                                    </button>
+                                    <button
+                                        id="toggleMute"
+                                        class="hidden bg-gray-700 text-white px-3 py-1 rounded font-medium hover:bg-gray-600 transition-colors text-xs"
+                                    >
+                                        mute
+                                    </button>
+                                    <button
+                                        id="toggleVideo"
+                                        class="hidden bg-gray-700 text-white px-3 py-1 rounded font-medium hover:bg-gray-600 transition-colors text-xs"
+                                    >
+                                        video
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         
-                        <div id="onlineMessages" class="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
-                            <div id="onlineMessagesList" class="space-y-2">
+                        <div id="onlineMessages" class="flex-1 min-h-0">
+                            <div id="onlineMessagesList" class="h-full overflow-y-auto p-3 space-y-2">
                                 <!-- Placeholder messages - will be cleared when real messages arrive -->
                                 <div class="placeholder-messages opacity-30">
                                     <!-- Received message (left side) -->
@@ -134,37 +162,9 @@
                             </div>
                         </div>
                         
-                        <!-- Media Controls for Online Section -->
-                        <div id="fixed-div">
-                            <div class="border-t border-gray-800 p-3" id="onlineMediaControls">
-                                <div class="flex justify-center gap-2 mb-3">
-                                    <button
-                                            id="startCall"
-                                            class="bg-green-600 text-white px-3 py-2 rounded font-medium hover:bg-green-700 transition-colors text-sm"
-                                    >
-                                        call
-                                    </button>
-                                    <button
-                                            id="endCall"
-                                            class="hidden bg-red-600 text-white px-3 py-2 rounded font-medium hover:bg-red-700 transition-colors text-sm"
-                                    >
-                                        end
-                                    </button>
-                                    <button
-                                            id="toggleMute"
-                                            class="bg-gray-700 text-white px-3 py-2 rounded font-medium hover:bg-gray-600 transition-colors text-sm"
-                                    >
-                                        mute
-                                    </button>
-                                    <button
-                                            id="toggleVideo"
-                                            class="bg-gray-700 text-white px-3 py-2 rounded font-medium hover:bg-gray-600 transition-colors text-sm"
-                                    >
-                                        video
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="p-3 border-t border-gray-800" id="onlineInputContainer">
+                        <!-- Sticky Input Container -->
+                        <div class="sticky bottom-0 bg-black border-t border-gray-800">
+                            <div class="p-3" id="onlineInputContainer">
                                 <div class="flex space-x-2">
                                     <input
                                             type="text"
@@ -238,17 +238,23 @@
             </div>
 
 
-            <!-- Video Container -->
-            <div id="videoContainer" class="hidden border-t border-gray-800 p-3">
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div class="relative aspect-video bg-gray-900 rounded overflow-hidden border border-gray-700">
+            <!-- Video Container - WhatsApp Style -->
+            <div id="videoContainer" class="hidden fixed inset-0 bg-black z-50">
+                <!-- Main peer video (full screen) -->
+                <div class="relative w-full h-full">
+                    <video id="remoteVideo" autoplay playsinline class="w-full h-full object-cover"></video>
+                    <div class="absolute bottom-2 left-2 bg-black/80 text-white px-2 py-1 rounded text-xs">peer</div>
+                    
+                    <!-- Floating self video (top right corner) -->
+                    <div class="absolute top-4 right-4 w-32 h-24 bg-gray-900 rounded-lg overflow-hidden border border-gray-600 shadow-lg">
                         <video id="localVideo" muted autoplay playsinline class="w-full h-full object-cover"></video>
-                        <div class="absolute bottom-2 left-2 bg-black/80 text-white px-2 py-1 rounded text-xs">you</div>
+                        <div class="absolute bottom-1 left-1 bg-black/80 text-white px-1 py-0.5 rounded text-xs">you</div>
                     </div>
-                    <div class="relative aspect-video bg-gray-900 rounded overflow-hidden border border-gray-700">
-                        <video id="remoteVideo" autoplay playsinline class="w-full h-full object-cover"></video>
-                        <div class="absolute bottom-2 left-2 bg-black/80 text-white px-2 py-1 rounded text-xs">peer</div>
-                    </div>
+                    
+                    <!-- Close button -->
+                    <button id="closeVideoCall" class="absolute top-4 left-4 bg-red-600 hover:bg-red-700 text-white rounded-full w-10 h-10 flex items-center justify-center transition-colors">
+                        <span class="text-lg font-bold">&times;</span>
+                    </button>
                 </div>
             </div>
         </main>

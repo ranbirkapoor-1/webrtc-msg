@@ -322,3 +322,41 @@ button:focus {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+
+/* Video call popup styles */
+#videoContainer {
+    z-index: 9999;
+    backdrop-filter: blur(5px);
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Floating self video styles */
+#videoContainer .absolute.top-4.right-4 {
+    transition: all 0.3s ease;
+    cursor: move;
+}
+
+#videoContainer .absolute.top-4.right-4:hover {
+    transform: scale(1.05);
+}
+
+/* Close button hover effect */
+#closeVideoCall {
+    transition: all 0.2s ease;
+}
+
+#closeVideoCall:hover {
+    background-color: #dc2626;
+    transform: scale(1.1);
+}
