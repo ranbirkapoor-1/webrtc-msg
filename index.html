@@ -36,7 +36,6 @@
             <div class="border-b border-gray-800 p-4">
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-sm text-gray-400 mb-2">room key</label>
                         <input 
                             type="password" 
                             id="roomPassword" 
@@ -46,7 +45,6 @@
                         >
                     </div>
                     <div>
-                        <label class="block text-sm text-gray-400 mb-2">alias</label>
                         <input 
                             type="text" 
                             id="userAlias" 
@@ -66,14 +64,16 @@
                 
                 <div class="connection-info hidden mt-4 p-3 bg-gray-900 rounded border border-gray-700" id="connectionInfo">
                     <div class="space-y-2 text-sm">
-                        <p class="text-gray-400">room: <span id="currentRoomId" class="text-white font-mono"></span></p>
+                        <div style="display: flex; justify-content: space-between">
+                            <p class="text-gray-400">room: <span id="currentRoomId" class="text-white font-mono"></span> </p>
+                            <button
+                                    id="leaveRoom"
+                                    class="text-red-400 hover:text-red-300 transition-colors text-sm"
+                            >
+                                disconnect
+                            </button>
+                        </div>
                         <p class="text-green-400">e2e encrypted</p>
-                        <button 
-                            id="leaveRoom"
-                            class="text-red-400 hover:text-red-300 transition-colors text-sm"
-                        >
-                            disconnect
-                        </button>
                     </div>
                 </div>
             </div>
@@ -93,8 +93,8 @@
                 <!-- Chat Sections -->
                 <div class="flex-1 flex flex-col min-h-0">
                     <!-- Online Chat Section -->
-                    <div class="online-section flex-1 flex flex-col min-h-0" id="onlineSection">
-                        <div class="flex justify-between items-center p-3 border-b border-gray-800 text-sm">
+                    <div class="online-section flex-1 flex flex-col h-full" id="onlineSection">
+                        <div class="flex justify-between items-center p-3 border-b border-gray-800 text-sm flex-shrink-0">
                             <span class="text-gray-400">direct p2p</span>
                             <div class="flex items-center space-x-3">
                                 <div class="connection-indicator flex items-center space-x-2">
@@ -130,7 +130,8 @@
                             </div>
                         </div>
                         
-                        <div id="onlineMessages" class="flex-1 min-h-0">
+                        <!-- Messages Area - Takes remaining space -->
+                        <div class="flex-1 overflow-hidden">
                             <div id="onlineMessagesList" class="h-full overflow-y-auto p-3 space-y-2">
                                 <!-- Placeholder messages - will be cleared when real messages arrive -->
                                 <div class="placeholder-messages opacity-30">
@@ -162,8 +163,8 @@
                             </div>
                         </div>
                         
-                        <!-- Sticky Input Container -->
-                        <div class="sticky bottom-0 bg-black border-t border-gray-800">
+                        <!-- Sticky Input Container - Always at bottom -->
+                        <div class="flex-shrink-0 bg-black border-t border-gray-800">
                             <div class="p-3" id="onlineInputContainer">
                                 <div class="flex space-x-2">
                                     <input
@@ -237,6 +238,24 @@
                 </div>
             </div>
 
+            <!-- Incoming Call Notification -->
+            <div id="callNotification" class="hidden fixed inset-0 bg-black/80 z-40 flex items-center justify-center">
+                <div class="bg-gray-900 border border-gray-700 rounded-lg p-6 max-w-sm mx-4 text-center">
+                    <div class="text-white text-lg mb-4" id="callNotificationText">
+                        Incoming call...
+                    </div>
+                    <div class="flex gap-4 justify-center">
+                        <button id="acceptCall" class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-full transition-colors">
+                            <span class="text-lg">📞</span>
+                            Accept
+                        </button>
+                        <button id="declineCall" class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full transition-colors">
+                            <span class="text-lg">📵</span>
+                            Decline
+                        </button>
+                    </div>
+                </div>
+            </div>
 
             <!-- Video Container - WhatsApp Style -->
             <div id="videoContainer" class="hidden fixed inset-0 bg-black z-50">

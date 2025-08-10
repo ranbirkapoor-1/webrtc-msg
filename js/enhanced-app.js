@@ -59,7 +59,11 @@ class EnhancedSecureMessenger {
             videoContainer: document.getElementById('videoContainer'),
             localVideo: document.getElementById('localVideo'),
             remoteVideo: document.getElementById('remoteVideo'),
-            closeVideoCall: document.getElementById('closeVideoCall')
+            closeVideoCall: document.getElementById('closeVideoCall'),
+            callNotification: document.getElementById('callNotification'),
+            callNotificationText: document.getElementById('callNotificationText'),
+            acceptCall: document.getElementById('acceptCall'),
+            declineCall: document.getElementById('declineCall')
         };
     }
 
@@ -100,6 +104,14 @@ class EnhancedSecureMessenger {
                 this.endCall();
             }
         });
+        
+        // Call notification buttons
+        if (this.elements.acceptCall) {
+            this.elements.acceptCall.addEventListener('click', () => this.acceptIncomingCall());
+        }
+        if (this.elements.declineCall) {
+            this.elements.declineCall.addEventListener('click', () => this.declineIncomingCall());
+        }
         
         this.elements.offlineTab.addEventListener('click', () => this.switchToOfflineTab());
         this.elements.onlineTab.addEventListener('click', () => this.switchToOnlineTab());
@@ -163,6 +175,16 @@ class EnhancedSecureMessenger {
                     
                     case 'candidate':
                         await this.webrtc.addIceCandidate(data);
+                        break;
+                    
+                    case 'call_request':
+                        console.log('📞 Incoming call from:', data.senderAlias);
+                        this.showIncomingCallNotification(data.senderAlias);
+                        break;
+                    
+                    case 'call_declined':
+                        console.log('📵 Call declined');
+                        this.hideCallNotification();
                         break;
                 }
             } catch (error) {
@@ -393,6 +415,9 @@ class EnhancedSecureMessenger {
 
             // Start periodic cleanup
             this.startPeriodicTasks();
+            
+            // Set up call notification listener
+            this.setupCallNotificationListener();
 
             console.log('🎉 Successfully joined room!');
             
@@ -535,7 +560,9 @@ class EnhancedSecureMessenger {
         `;
         
         this.elements.messages.appendChild(messageElement);
-        this.scrollToBottom(this.elements.messages);
+        requestAnimationFrame(() => {
+            this.scrollToBottom(this.elements.messages);
+        });
     }
 
     /**
@@ -578,7 +605,12 @@ class EnhancedSecureMessenger {
         `;
         
         this.elements.onlineMessagesList.appendChild(messageElement);
-        this.scrollToBottom(this.elements.onlineMessagesList);
+        
+        // Always scroll to bottom for online messages (force = true)
+        // Use requestAnimationFrame to ensure the DOM is updated before scrolling
+        requestAnimationFrame(() => {
+            this.scrollToBottom(this.elements.onlineMessagesList, true, true);
+        });
         
         // Add notification if not on online tab
         if (!this.elements.onlineTab.classList.contains('active') && !isSent) {
@@ -897,20 +929,43 @@ class EnhancedSecureMessenger {
     /**
      * Smooth scroll to bottom of container
      */
-    scrollToBottom(container, smooth = true) {
-        if (!container) return;
+    scrollToBottom(container, smooth = true, force = false) {
+        if (!container) {
+            console.warn('⚠️ scrollToBottom: No container provided');
+            return;
+        }
         
-        const shouldAutoScroll = this.shouldAutoScroll(container);
-        if (!shouldAutoScroll) return; // Don't auto-scroll if user has scrolled up
+        // For online messages, always auto-scroll (force = true)
+        // For other containers, check if user has scrolled up
+        if (!force) {
+            const shouldAutoScroll = this.shouldAutoScroll(container);
+            if (!shouldAutoScroll) {
+                console.log('📜 Skipping auto-scroll - user has scrolled up');
+                return; // Don't auto-scroll if user has scrolled up
+            }
+        }
+        
+        // Get current scroll info for debugging
+        const scrollHeight = container.scrollHeight;
+        const clientHeight = container.clientHeight;
+        const currentScrollTop = container.scrollTop;
+        
+        console.log(`📜 Scrolling to bottom - Height: ${scrollHeight}, Client: ${clientHeight}, Current: ${currentScrollTop}`);
         
         if (smooth) {
             container.scrollTo({
-                top: container.scrollHeight,
+                top: scrollHeight,
                 behavior: 'smooth'
             });
         } else {
-            container.scrollTop = container.scrollHeight;
+            container.scrollTop = scrollHeight;
         }
+        
+        // Verify scroll after a short delay
+        setTimeout(() => {
+            const newScrollTop = container.scrollTop;
+            console.log(`📜 Scroll completed - New position: ${newScrollTop}/${scrollHeight}`);
+        }, 100);
     }
 
     /**
@@ -1029,6 +1084,9 @@ class EnhancedSecureMessenger {
                 return;
             }
             
+            // Send call request notification to other peers
+            await this.sendCallRequest();
+            
             const stream = await this.webrtc.startMediaCall(true, true);
             this.elements.localVideo.srcObject = stream;
             this.elements.videoContainer.style.display = 'flex';
@@ -1116,6 +1174,131 @@ class EnhancedSecureMessenger {
                 this.elements.toggleVideo.className = videoTrack.enabled
                     ? 'bg-gray-700 text-white px-3 py-2 rounded font-medium hover:bg-gray-600 transition-colors text-sm'
                     : 'bg-red-600 text-white px-3 py-2 rounded font-medium hover:bg-red-700 transition-colors text-sm';
+            }
+        }
+    }
+    
+    // Call notification methods
+    async sendCallRequest() {
+        if (this.signaling && this.userAlias && this.signaling.roomRef && this.signaling.firebaseRefs) {
+            try {
+                console.log('📤 Sending call request notification');
+                
+                // Send call notification to Firebase
+                const notificationRef = this.signaling.firebaseRefs.push(
+                    this.signaling.firebaseRefs.child(this.signaling.roomRef, 'call_notifications')
+                );
+                
+                await this.signaling.firebaseRefs.set(notificationRef, {
+                    type: 'call_request',
+                    senderAlias: this.userAlias,
+                    sender: this.signaling.sessionId,
+                    timestamp: Date.now()
+                });
+                
+                console.log('✅ Call request notification sent');
+            } catch (error) {
+                console.error('❌ Failed to send call request:', error);
+            }
+        }
+    }
+    
+    showIncomingCallNotification(senderAlias) {
+        if (this.elements.callNotification && this.elements.callNotificationText) {
+            this.elements.callNotificationText.textContent = `${senderAlias} is calling...`;
+            this.elements.callNotification.classList.remove('hidden');
+            console.log('📞 Showing incoming call notification from:', senderAlias);
+        }
+    }
+    
+    hideCallNotification() {
+        if (this.elements.callNotification) {
+            this.elements.callNotification.classList.add('hidden');
+            console.log('🔕 Hiding call notification');
+        }
+    }
+    
+    async acceptIncomingCall() {
+        console.log('✅ Accepting incoming call');
+        this.hideCallNotification();
+        // Start the call automatically when accepting
+        await this.startCall();
+    }
+    
+    async declineIncomingCall() {
+        console.log('❌ Declining incoming call');
+        this.hideCallNotification();
+        // Send decline message to other peer
+        await this.sendCallDeclined();
+    }
+    
+    async sendCallDeclined() {
+        if (this.signaling && this.signaling.roomRef && this.signaling.firebaseRefs) {
+            try {
+                console.log('📤 Sending call declined notification');
+                
+                const notificationRef = this.signaling.firebaseRefs.push(
+                    this.signaling.firebaseRefs.child(this.signaling.roomRef, 'call_notifications')
+                );
+                
+                await this.signaling.firebaseRefs.set(notificationRef, {
+                    type: 'call_declined',
+                    sender: this.signaling.sessionId,
+                    timestamp: Date.now()
+                });
+                
+                console.log('✅ Call declined notification sent');
+            } catch (error) {
+                console.error('❌ Failed to send call declined:', error);
+            }
+        }
+    }
+    
+    setupCallNotificationListener() {
+        if (this.signaling && this.signaling.roomRef && this.signaling.firebaseRefs) {
+            try {
+                console.log('👂 Setting up call notification listener');
+                
+                const notificationsRef = this.signaling.firebaseRefs.child(
+                    this.signaling.roomRef, 
+                    'call_notifications'
+                );
+                
+                this.signaling.firebaseRefs.on(notificationsRef, 'child_added', (snapshot) => {
+                    const notificationData = snapshot.val();
+                    const notificationId = snapshot.key;
+                    
+                    // Skip our own notifications
+                    if (notificationData.sender === this.signaling.sessionId) {
+                        return;
+                    }
+                    
+                    // Skip old notifications (older than 30 seconds)
+                    if (Date.now() - notificationData.timestamp > 30000) {
+                        return;
+                    }
+                    
+                    console.log('📞 Received call notification:', notificationData);
+                    
+                    if (notificationData.type === 'call_request') {
+                        this.showIncomingCallNotification(notificationData.senderAlias);
+                    } else if (notificationData.type === 'call_declined') {
+                        this.hideCallNotification();
+                        alert('Call was declined');
+                    }
+                    
+                    // Clean up the notification after handling
+                    setTimeout(() => {
+                        this.signaling.firebaseRefs.remove(
+                            this.signaling.firebaseRefs.child(notificationsRef, notificationId)
+                        );
+                    }, 5000);
+                });
+                
+                console.log('✅ Call notification listener set up');
+                
+            } catch (error) {
+                console.error('❌ Failed to set up call notification listener:', error);
             }
         }
     }

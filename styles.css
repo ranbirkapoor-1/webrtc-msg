@@ -360,3 +360,30 @@ button:focus {
     background-color: #dc2626;
     transform: scale(1.1);
 }
+
+/* Mirror local video feed */
+#localVideo {
+    transform: scaleX(-1);
+}
+
+/* Ensure proper scrolling behavior for messages */
+#onlineMessagesList {
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
+}
+
+/* WhatsApp-like layout fixes */
+.online-section {
+    height: 100%;
+    max-height: 100%;
+}
+
+/* Ensure the messages container takes proper space */
+#onlineMessagesList {
+    padding-bottom: 0.5rem; /* Add some padding at bottom for better UX */
+}
+
+/* Prevent input container from growing */
+#onlineInputContainer {
+    flex-shrink: 0;
+}
