@@ -62,6 +62,15 @@ export class WebRTCManager {
             }
         };
 
+        // Handle remote stream
+        this.peerConnection.ontrack = (event) => {
+            console.log('📺 Remote stream received');
+            const remoteStream = event.streams[0];
+            if (this.onRemoteStream) {
+                this.onRemoteStream(remoteStream);
+            }
+        };
+
         this.peerConnection.oniceconnectionstatechange = () => {
             console.log('🧊 ICE connection state changed:', this.peerConnection.iceConnectionState);
             
@@ -381,29 +390,108 @@ export class WebRTCManager {
         }
     }
 
-    async startMediaCall(video = false) {
+    async startMediaCall(video = false, audio = true) {
         try {
-            this.localStream = await navigator.mediaDevices.getUserMedia({
-                audio: true,
-                video: video
-            });
+            console.log('📞 Starting media call with video:', video, 'audio:', audio);
+            
+            const mediaConstraints = {
+                audio: audio ? {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    sampleRate: 44100
+                } : false,
+                video: video ? {
+                    width: { ideal: 1280, max: 1920 },
+                    height: { ideal: 720, max: 1080 },
+                    frameRate: { ideal: 30, max: 60 }
+                } : false
+            };
 
-            this.localStream.getTracks().forEach(track => {
-                this.peerConnection.addTrack(track, this.localStream);
-            });
+            this.localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
+            console.log('✅ Media stream acquired');
+
+            // Add tracks to peer connection if it exists
+            if (this.peerConnection) {
+                this.localStream.getTracks().forEach(track => {
+                    console.log('➕ Adding track to peer connection:', track.kind);
+                    this.peerConnection.addTrack(track, this.localStream);
+                });
+                
+                // Renegotiate connection if already established
+                if (this.peerConnection.connectionState === 'connected') {
+                    console.log('🔄 Renegotiating connection for new media tracks');
+                    await this.renegotiateConnection();
+                }
+            }
 
             return this.localStream;
         } catch (error) {
-            console.error('Error accessing media devices:', error);
+            console.error('❌ Error accessing media devices:', error);
             throw error;
         }
     }
 
+    async renegotiateConnection() {
+        try {
+            if (this.isInitiator) {
+                const offer = await this.peerConnection.createOffer();
+                await this.peerConnection.setLocalDescription(offer);
+                // Send the new offer via signaling
+                if (this.onIceCandidate) {
+                    // This would need to be connected to the signaling system
+                    console.log('📤 New offer created for renegotiation');
+                }
+            }
+        } catch (error) {
+            console.error('❌ Failed to renegotiate connection:', error);
+        }
+    }
+
     endCall() {
+        console.log('📞 Ending media call');
         if (this.localStream) {
-            this.localStream.getTracks().forEach(track => track.stop());
+            this.localStream.getTracks().forEach(track => {
+                console.log('⏹️ Stopping track:', track.kind);
+                track.stop();
+            });
             this.localStream = null;
         }
+        
+        // Remove tracks from peer connection
+        if (this.peerConnection) {
+            this.peerConnection.getSenders().forEach(sender => {
+                if (sender.track) {
+                    this.peerConnection.removeTrack(sender);
+                }
+            });
+        }
+    }
+
+    // Toggle audio mute
+    toggleAudio(enabled = null) {
+        if (this.localStream) {
+            const audioTrack = this.localStream.getAudioTracks()[0];
+            if (audioTrack) {
+                audioTrack.enabled = enabled !== null ? enabled : !audioTrack.enabled;
+                console.log('🎤 Audio', audioTrack.enabled ? 'unmuted' : 'muted');
+                return audioTrack.enabled;
+            }
+        }
+        return false;
+    }
+
+    // Toggle video
+    toggleVideo(enabled = null) {
+        if (this.localStream) {
+            const videoTrack = this.localStream.getVideoTracks()[0];
+            if (videoTrack) {
+                videoTrack.enabled = enabled !== null ? enabled : !videoTrack.enabled;
+                console.log('📹 Video', videoTrack.enabled ? 'enabled' : 'disabled');
+                return videoTrack.enabled;
+            }
+        }
+        return false;
     }
 
     close() {

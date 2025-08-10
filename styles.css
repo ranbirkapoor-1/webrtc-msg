@@ -8,7 +8,7 @@
     word-wrap: break-word;
 }
 
-/* Sender messages - right side, white background */
+/* Sender messages - right side */
 .message.local {
     justify-content: flex-end;
 }
@@ -17,23 +17,27 @@
     max-width: 70%;
     display: flex;
     flex-direction: column;
+    border: 1px solid #6b7280;
+    background: #6b7280;
+    padding: 12px;
+    border-radius: 8px;
+    margin-right: 8px;
 }
 
 .message.local .message-content {
-    background: #FFFFFF;
-    color: #000000;
-    padding: 10px 12px;
-    border-radius: 12px;
-    border: 1px solid #d1d5db;
+    background: transparent;
+    color: #FFFFFF;
+    padding: 0;
+    border: none;
     word-wrap: break-word;
     line-height: 1.4;
     font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
     font-size: 0.875rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    margin-right: 8px;
+    box-shadow: none;
+    margin: 0;
 }
 
-/* Receiver messages - left side, dark background */
+/* Receiver messages - left side */
 .message.remote {
     justify-content: flex-start;
 }
@@ -42,28 +46,44 @@
     max-width: 70%;
     display: flex;
     flex-direction: column;
+    border: 1px solid #6b7280;
+    background: #6b7280;
+    padding: 12px;
+    border-radius: 8px;
+    margin-left: 8px;
 }
 
 .message.remote .message-content {
-    background: #000000;
+    background: transparent;
     color: #FFFFFF;
-    padding: 10px 12px;
-    border-radius: 12px;
-    border: 1px solid #374151;
+    padding: 0;
+    border: none;
     word-wrap: break-word;
     line-height: 1.4;
     font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
     font-size: 0.875rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-    margin-left: 8px;
+    box-shadow: none;
+    margin: 0;
+}
+
+.message-sender {
+    font-size: 0.625rem;
+    color: #d1d5db;
+    margin-bottom: 0.25rem;
+    padding: 0;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .message-time {
     font-size: 0.625rem;
-    color: #6b7280;
+    color: #d1d5db;
     margin-top: 0.25rem;
-    padding: 0 0.25rem;
+    padding: 0;
     font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+    opacity: 0.8;
 }
 
 .message.local .message-time {
@@ -138,21 +158,23 @@
 }
 
 /* P2P message styling - uses standard message classes with special indicator */
+.p2p-message .message-wrapper {
+    border-color: #16a34a;
+    background: #374151;
+}
+
 .p2p-message .message-content {
-    border: 1px solid #16a34a;
     position: relative;
 }
 
-.p2p-message.local .message-content {
-    background: white;
-    color: black;
+.p2p-message.local .message-wrapper {
     border-color: #16a34a;
+    background: #374151;
 }
 
-.p2p-message.remote .message-content {
-    background: black;
-    color: white;
+.p2p-message.remote .message-wrapper {
     border-color: #16a34a;
+    background: #374151;
 }
 
 .p2p-indicator {
@@ -246,19 +268,15 @@
     transition: opacity 0.5s ease-out;
 }
 
-.placeholder-content {
+.placeholder-messages .message-wrapper {
     border: 1px dashed #374151 !important;
+    background: #374151 !important;
     opacity: 0.6;
 }
 
-.placeholder-messages .message.local .placeholder-content {
-    background-color: #f3f4f6 !important;
-    color: #6b7280 !important;
-}
-
-.placeholder-messages .message.remote .placeholder-content {
-    background-color: #374151 !important;
+.placeholder-messages .message-content {
     color: #9ca3af !important;
+    background: transparent !important;
 }
 
 .placeholder-messages .message-time {

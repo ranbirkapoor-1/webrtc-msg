@@ -75,9 +75,9 @@ export class EnhancedSignalingManager {
     }
 
     /**
-     * Join or create room
+     * Join or create room with alias and participant limit
      */
-    async joinRoom(roomId, sessionId, isInitiator = false) {
+    async joinRoom(roomId, sessionId, isInitiator = false, alias = null) {
         this.currentRoomId = roomId;
         this.sessionId = sessionId;
         
@@ -86,12 +86,22 @@ export class EnhancedSignalingManager {
         // Set up room reference
         this.roomRef = this.firebaseRefs.ref(this.database, `rooms/${roomId}`);
 
-        // Update room info
+        // Check participant count before joining (max 3 participants)
+        if (!isInitiator) {
+            const participantCheck = await this.checkActiveParticipants(roomId);
+            if (participantCheck.count >= 3) {
+                throw new Error('Room is full (maximum 3 participants)');
+            }
+        }
+
+        // Update room info with alias
         const roomUpdate = {
             [`participants/${sessionId}`]: {
                 joined: Date.now(),
                 lastSeen: Date.now(),
-                active: true
+                active: true,
+                alias: alias || 'Anonymous',
+                sessionId: sessionId
             },
             lastActivity: Date.now()
         };
@@ -99,6 +109,7 @@ export class EnhancedSignalingManager {
         if (isInitiator) {
             roomUpdate.created = Date.now();
             roomUpdate.messageCount = 0;
+            roomUpdate.maxParticipants = 3;
         }
 
         await this.firebaseRefs.update(this.roomRef, roomUpdate);
@@ -113,6 +124,34 @@ export class EnhancedSignalingManager {
         this.startActivityUpdates();
 
         console.log('✅ Room setup complete');
+    }
+
+    /**
+     * Get participant aliases for the current room
+     */
+    async getParticipantAliases() {
+        if (!this.roomRef) return {};
+        
+        try {
+            const participantsRef = this.firebaseRefs.ref(this.database, `rooms/${this.currentRoomId}/participants`);
+            const snapshot = await this.firebaseRefs.get(participantsRef);
+            
+            if (!snapshot.exists()) return {};
+            
+            const participants = snapshot.val();
+            const aliases = {};
+            
+            for (const [sessionId, data] of Object.entries(participants)) {
+                if (data.active && data.alias) {
+                    aliases[sessionId] = data.alias;
+                }
+            }
+            
+            return aliases;
+        } catch (error) {
+            console.warn('⚠️ Failed to get participant aliases:', error);
+            return {};
+        }
     }
 
     /**
@@ -342,15 +381,23 @@ export class EnhancedSignalingManager {
     }
 
     /**
-     * Update room activity
+     * Update room activity and check for cleanup
      */
     async updateActivity() {
-        if (this.roomRef && this.sessionId) {
+        if (this.roomRef && this.sessionId && this.currentRoomId) {
             try {
                 await this.firebaseRefs.update(this.roomRef, {
                     [`participants/${this.sessionId}/lastSeen`]: Date.now(),
                     lastActivity: Date.now()
                 });
+
+                // Periodically check if room should be cleaned up due to inactivity
+                // Check every 5 minutes (10 activity updates)
+                this.inactivityCheckCounter = (this.inactivityCheckCounter || 0) + 1;
+                if (this.inactivityCheckCounter >= 10) {
+                    this.inactivityCheckCounter = 0;
+                    await this.checkForInactiveRoomCleanup();
+                }
             } catch (error) {
                 console.warn('⚠️ Failed to update activity:', error.message);
             }
@@ -358,7 +405,33 @@ export class EnhancedSignalingManager {
     }
 
     /**
-     * Leave room and cleanup
+     * Check if room should be cleaned up due to all participants being inactive
+     */
+    async checkForInactiveRoomCleanup() {
+        if (!this.currentRoomId) return;
+        
+        try {
+            const participantCheck = await this.checkActiveParticipants(this.currentRoomId);
+            
+            // If no active participants for an extended time, clean up
+            if (participantCheck.count === 0) {
+                console.log('🧹 All participants inactive - scheduling room cleanup');
+                // Give a grace period before cleanup
+                setTimeout(async () => {
+                    const recheckParticipants = await this.checkActiveParticipants(this.currentRoomId);
+                    if (recheckParticipants.count === 0) {
+                        console.log('🧹 Confirmed no active participants - cleaning up room');
+                        await this.cleanupRoomCompletely(this.currentRoomId);
+                    }
+                }, 60000); // 1-minute grace period
+            }
+        } catch (error) {
+            console.warn('⚠️ Failed to check for inactive room cleanup:', error);
+        }
+    }
+
+    /**
+     * Leave room and cleanup with auto-delete messages
      */
     async leaveRoom() {
         // Stop activity updates
@@ -368,18 +441,22 @@ export class EnhancedSignalingManager {
             console.log('⏹️ Stopped activity updates');
         }
         
-        if (this.roomRef && this.sessionId) {
+        if (this.roomRef && this.sessionId && this.currentRoomId) {
             // Mark as inactive
             await this.firebaseRefs.update(this.roomRef, {
                 [`participants/${this.sessionId}/active`]: false,
                 [`participants/${this.sessionId}/left`]: Date.now()
             });
 
+            // Check if this was the last active participant
+            const participantCheck = await this.checkActiveParticipants(this.currentRoomId);
+            if (participantCheck.count === 0) {
+                console.log('🧹 Last participant leaving - cleaning up all room data');
+                await this.cleanupRoomCompletely(this.currentRoomId);
+            }
+
             // Remove listeners
             this.firebaseRefs.off(this.roomRef);
-            
-            // Clean up signaling data (optional - keeps for debugging)
-            // await this.cleanupSignalingData();
         }
 
         this.currentRoomId = null;
@@ -388,6 +465,35 @@ export class EnhancedSignalingManager {
         this.processedSignals.clear();
         
         console.log('👋 Left room');
+    }
+
+    /**
+     * Completely clean up room when all participants leave
+     */
+    async cleanupRoomCompletely(roomId) {
+        try {
+            console.log(`🧹 Cleaning up all data for room: ${roomId}`);
+            
+            // Delete all encrypted messages
+            const messagesRef = this.firebaseRefs.ref(this.database, `encrypted_messages/${roomId}`);
+            await this.firebaseRefs.remove(messagesRef);
+            console.log('🗑️ Deleted all encrypted messages');
+            
+            // Delete WebRTC signaling data
+            const signalingRef = this.firebaseRefs.ref(this.database, `webrtc_signaling/${roomId}`);
+            await this.firebaseRefs.remove(signalingRef);
+            console.log('🗑️ Deleted WebRTC signaling data');
+            
+            // Delete room metadata
+            const roomRef = this.firebaseRefs.ref(this.database, `rooms/${roomId}`);
+            await this.firebaseRefs.remove(roomRef);
+            console.log('🗑️ Deleted room metadata');
+            
+            console.log('✅ Complete room cleanup finished - all data deleted');
+            
+        } catch (error) {
+            console.error('❌ Failed to cleanup room completely:', error);
+        }
     }
 
     /**

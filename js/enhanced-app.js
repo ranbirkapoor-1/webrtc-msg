@@ -24,11 +24,14 @@ class EnhancedSecureMessenger {
         this.setupEventListeners();
         this.setupWebRTCCallbacks();
         this.setupSignalingCallbacks();
+        this.setupScrollBehavior();
+        this.setupPageUnloadHandling();
     }
 
     initializeElements() {
         this.elements = {
             roomPassword: document.getElementById('roomPassword'),
+            userAlias: document.getElementById('userAlias'),
             joinRoom: document.getElementById('joinRoom'),
             leaveRoom: document.getElementById('leaveRoom'),
             connectionStatus: document.getElementById('connectionStatus'),
@@ -48,7 +51,7 @@ class EnhancedSecureMessenger {
             onlineInputContainer: document.getElementById('onlineInputContainer'),
             onlineMessageInput: document.getElementById('onlineMessageInput'),
             sendOnlineMessage: document.getElementById('sendOnlineMessage'),
-            mediaControls: document.getElementById('mediaControls'),
+            mediaControls: document.getElementById('onlineMediaControls'),
             startCall: document.getElementById('startCall'),
             endCall: document.getElementById('endCall'),
             toggleMute: document.getElementById('toggleMute'),
@@ -63,6 +66,9 @@ class EnhancedSecureMessenger {
         this.elements.joinRoom.addEventListener('click', () => this.joinRoom());
         this.elements.leaveRoom.addEventListener('click', () => this.leaveRoom());
         this.elements.roomPassword.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.joinRoom();
+        });
+        this.elements.userAlias.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.joinRoom();
         });
 
@@ -238,14 +244,29 @@ class EnhancedSecureMessenger {
     }
 
     /**
-     * Join room with password
+     * Join room with password and alias
      */
     async joinRoom() {
         const password = this.elements.roomPassword.value.trim();
         if (!password) {
-            alert('Please enter a password');
+            alert('Please enter a room key');
             return;
         }
+
+        // Get alias from input field
+        const alias = this.elements.userAlias.value.trim();
+        if (!alias) {
+            alert('Please enter an alias');
+            return;
+        }
+        
+        if (alias.length > 20) {
+            alert('Alias must be 20 characters or less');
+            return;
+        }
+
+        this.userAlias = alias;
+        console.log('👤 User alias set to:', this.userAlias);
 
         try {
             console.log('🔐 Joining room with password...');
@@ -289,9 +310,9 @@ class EnhancedSecureMessenger {
 
             console.log(isInitiator ? '👑 Creating/restarting room' : '🚪 Joining active room');
 
-            // Join room in signaling
+            // Join room in signaling with alias
             console.log('📡 Starting signaling setup...');
-            await this.signaling.joinRoom(this.roomId, this.sessionId, isInitiator);
+            await this.signaling.joinRoom(this.roomId, this.sessionId, isInitiator, this.userAlias);
             console.log('✅ Signaling setup complete');
 
             // Initialize message manager (for live chat with Firebase fallback)
@@ -300,8 +321,8 @@ class EnhancedSecureMessenger {
             this.messageManager.initialize();
 
             // Initialize WebRTC online chat (for P2P-only direct messages)
-            this.webrtcSecrets = new WebRTCSecrets(this.webrtc, this.crypto);
-            this.webrtcSecrets.onSecretReceived = (secret) => this.displayOnlineMessage(secret.text, secret.timestamp, false, secret.ephemeral);
+            this.webrtcSecrets = new WebRTCSecrets(this.webrtc, this.crypto, this.signaling);
+            this.webrtcSecrets.onSecretReceived = (secret) => this.displayOnlineMessage(secret.text, secret.timestamp, false, secret.ephemeral, secret.senderAlias);
             this.webrtcSecrets.initialize();
 
             // Set up WebRTC with error handling
@@ -363,6 +384,9 @@ class EnhancedSecureMessenger {
             
             // Provide more specific error messages
             let errorMessage = 'Failed to join room';
+            if (error.message.includes('Room is full')) {
+                errorMessage = 'Room is full (maximum 3 participants). Please try a different room.';
+            } else
             if (error.message.includes('Firebase')) {
                 errorMessage = 'Connection failed. Please check your internet and try again.';
             } else if (error.message.includes('timeout')) {
@@ -399,11 +423,12 @@ class EnhancedSecureMessenger {
             const success = await this.messageManager.sendMessage(message);
             
             if (success) {
-                // Display immediately in UI
+                // Display immediately in UI with user's alias
                 this.displayMessage({
                     text: message,
                     timestamp: Date.now(),
-                    sender: 'local'
+                    sender: 'local',
+                    senderAlias: this.userAlias
                 });
                 
                 this.elements.messageInput.value = '';
@@ -439,7 +464,7 @@ class EnhancedSecureMessenger {
             await this.webrtcSecrets.sendWebRTCSecret(message);
             
             // Display in UI as sent
-            this.displayOnlineMessage(message, Date.now(), true, true);
+            this.displayOnlineMessage(message, Date.now(), true, true, this.userAlias);
             this.elements.onlineMessageInput.value = '';
             
             // Show confirmation
@@ -460,7 +485,7 @@ class EnhancedSecureMessenger {
     }
 
     /**
-     * Display message in UI
+     * Display message in UI with smooth scrolling and sender alias
      */
     displayMessage(message) {
         // Hide placeholder messages when first real message arrives
@@ -476,21 +501,30 @@ class EnhancedSecureMessenger {
         const time = new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const sourceLabel = message.source ? ` (${message.source})` : '';
         
+        // Show sender alias for received messages, "you" for sent messages
+        let senderLabel = '';
+        if (message.sender === 'remote' && message.senderAlias) {
+            senderLabel = `<div class="message-sender">${this.escapeHtml(message.senderAlias)}</div>`;
+        } else if (message.sender === 'local') {
+            senderLabel = `<div class="message-sender">you</div>`;
+        }
+        
         messageElement.innerHTML = `
             <div class="message-wrapper">
+                ${senderLabel}
                 <div class="message-content">${this.escapeHtml(message.text)}</div>
                 <div class="message-time">${time}${sourceLabel}</div>
             </div>
         `;
         
         this.elements.messages.appendChild(messageElement);
-        this.elements.messages.scrollTop = this.elements.messages.scrollHeight;
+        this.scrollToBottom(this.elements.messages);
     }
 
     /**
-     * Display online message with WebRTC indicators
+     * Display online message with WebRTC indicators and smooth scrolling
      */
-    displayOnlineMessage(text, timestamp, isSent = false, isEphemeral = false) {
+    displayOnlineMessage(text, timestamp, isSent = false, isEphemeral = false, senderAlias = null) {
         // Hide placeholder messages when first real message arrives
         const onlineMessagesContainer = this.elements.onlineMessagesList;
         if (onlineMessagesContainer && !onlineMessagesContainer.classList.contains('has-real-messages')) {
@@ -507,20 +541,27 @@ class EnhancedSecureMessenger {
         }
         
         const time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const ephemeralIndicator = isEphemeral ? ' • p2p' : ' • p2p';
+        
+        // Show sender alias for received messages, "you" for sent messages
+        let senderLabel = '';
+        if (!isSent && senderAlias) {
+            senderLabel = `<div class="message-sender">${this.escapeHtml(senderAlias)}</div>`;
+        } else if (isSent) {
+            senderLabel = `<div class="message-sender">you</div>`;
+        }
         
         messageElement.innerHTML = `
             <div class="message-wrapper">
-                <div class="message-content p2p-content">
+                ${senderLabel}
+                <div class="message-content">
                     ${this.escapeHtml(text)}
-                    <span class="p2p-indicator">${ephemeralIndicator}</span>
                 </div>
                 <div class="message-time">${time}</div>
             </div>
         `;
         
         this.elements.onlineMessagesList.appendChild(messageElement);
-        this.elements.onlineMessagesList.scrollTop = this.elements.onlineMessagesList.scrollHeight;
+        this.scrollToBottom(this.elements.onlineMessagesList);
         
         // Add notification if not on online tab
         if (!this.elements.onlineTab.classList.contains('active') && !isSent) {
@@ -528,46 +569,11 @@ class EnhancedSecureMessenger {
         }
         
 
-        // Auto-delete ephemeral messages from UI after display
-        if (isEphemeral && !isSent) {
-            this.startEphemeralCountdown(messageElement);
-        }
     }
 
 
 
 
-    /**
-     * Auto-delete ephemeral messages from UI after viewing
-     */
-    startEphemeralCountdown(messageElement) {
-        // Add countdown indicator
-        const countdownElement = document.createElement('div');
-        countdownElement.className = 'ephemeral-countdown';
-        countdownElement.innerHTML = 'Auto-deleting in <span id="countdown">15</span>s';
-        messageElement.appendChild(countdownElement);
-
-        // Start countdown
-        let countdown = 15;
-        const timer = setInterval(() => {
-            countdown--;
-            const countdownSpan = countdownElement.querySelector('#countdown');
-            if (countdownSpan) {
-                countdownSpan.textContent = countdown;
-            }
-
-            // Fade effect in last 5 seconds
-            if (countdown <= 5) {
-                messageElement.style.opacity = countdown * 0.2;
-            }
-
-            if (countdown <= 0) {
-                clearInterval(timer);
-                messageElement.remove();
-                console.log('🔥 Ephemeral secret message auto-deleted from UI');
-            }
-        }, 1000);
-    }
 
     /**
      * Update online message status based on WebRTC connection
@@ -729,6 +735,11 @@ class EnhancedSecureMessenger {
                 console.log('✅ Password input hidden');
             }
             
+            if (this.elements.userAlias) {
+                this.elements.userAlias.style.display = 'none';
+                console.log('✅ Alias input hidden');
+            }
+            
             if (this.elements.joinRoom) {
                 this.elements.joinRoom.style.display = 'none';
                 console.log('✅ Join button hidden');
@@ -781,8 +792,10 @@ class EnhancedSecureMessenger {
             this.elements.mediaControls.style.display = 'none';
             this.elements.videoContainer.style.display = 'none';
             this.elements.roomPassword.style.display = 'block';
+            this.elements.userAlias.style.display = 'block';
             this.elements.joinRoom.style.display = 'block';
             this.elements.roomPassword.value = '';
+            this.elements.userAlias.value = '';
             this.elements.messages.innerHTML = '';
             this.elements.onlineMessagesList.innerHTML = '';
             
@@ -865,6 +878,121 @@ class EnhancedSecureMessenger {
     }
 
     /**
+     * Smooth scroll to bottom of container
+     */
+    scrollToBottom(container, smooth = true) {
+        if (!container) return;
+        
+        const shouldAutoScroll = this.shouldAutoScroll(container);
+        if (!shouldAutoScroll) return; // Don't auto-scroll if user has scrolled up
+        
+        if (smooth) {
+            container.scrollTo({
+                top: container.scrollHeight,
+                behavior: 'smooth'
+            });
+        } else {
+            container.scrollTop = container.scrollHeight;
+        }
+    }
+
+    /**
+     * Check if we should auto-scroll (user hasn't scrolled up)
+     */
+    shouldAutoScroll(container) {
+        if (!container) return true;
+        
+        const scrollHeight = container.scrollHeight;
+        const clientHeight = container.clientHeight;
+        const scrollTop = container.scrollTop;
+        
+        // Consider "at bottom" if within 100px of the bottom
+        const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100;
+        
+        return isNearBottom;
+    }
+
+    /**
+     * Set up scroll behavior for chat containers
+     */
+    setupScrollBehavior() {
+        // Add scroll event listeners to detect user scrolling
+        if (this.elements.messages) {
+            this.elements.messages.classList.add('scrollbar-hide');
+            this.elements.messages.addEventListener('scroll', () => {
+                // User is actively scrolling, this will be checked by shouldAutoScroll
+            });
+        }
+        
+        if (this.elements.onlineMessagesList) {
+            this.elements.onlineMessagesList.classList.add('scrollbar-hide');
+            this.elements.onlineMessagesList.addEventListener('scroll', () => {
+                // User is actively scrolling, this will be checked by shouldAutoScroll
+            });
+        }
+    }
+
+    /**
+     * Set up page unload handling to clean up room when user closes browser
+     */
+    setupPageUnloadHandling() {
+        // Clean up when page is about to unload
+        window.addEventListener('beforeunload', () => {
+            if (this.isInRoom) {
+                // Use synchronous cleanup to ensure it happens before page closes
+                this.cleanupBeforeUnload();
+            }
+        });
+
+        // Also clean up on visibility change (tab switch)
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden' && this.isInRoom) {
+                // Update last seen time when tab becomes hidden
+                this.signaling?.updateActivity();
+            }
+        });
+    }
+
+    /**
+     * Synchronous cleanup before page unload
+     */
+    cleanupBeforeUnload() {
+        try {
+            if (this.signaling && this.signaling.roomRef && this.signaling.sessionId) {
+                // Mark participant as inactive immediately
+                const roomRef = this.signaling.roomRef;
+                const sessionId = this.signaling.sessionId;
+                
+                // Use synchronous Firebase operation
+                if (this.signaling.firebaseRefs) {
+                    this.signaling.firebaseRefs.set(
+                        this.signaling.firebaseRefs.ref(
+                            this.signaling.database, 
+                            `rooms/${this.signaling.currentRoomId}/participants/${sessionId}/active`
+                        ), 
+                        false
+                    );
+                    
+                    this.signaling.firebaseRefs.set(
+                        this.signaling.firebaseRefs.ref(
+                            this.signaling.database, 
+                            `rooms/${this.signaling.currentRoomId}/participants/${sessionId}/left`
+                        ), 
+                        Date.now()
+                    );
+                }
+            }
+            
+            // Close WebRTC connection
+            if (this.webrtc) {
+                this.webrtc.close();
+            }
+        } catch (error) {
+            console.warn('⚠️ Failed to cleanup before unload:', error);
+        }
+    }
+
+    /**
      * Escape HTML
      */
     escapeHtml(text) {
@@ -873,45 +1001,96 @@ class EnhancedSecureMessenger {
         return div.innerHTML;
     }
 
-    // Media controls (simplified)
+    // Enhanced Media controls
     async startCall() {
         try {
-            const stream = await this.webrtc.startMediaCall(true);
+            console.log('📞 Starting video call...');
+            
+            // Check if we're connected first
+            if (!this.isInRoom) {
+                alert('Please connect to a room first');
+                return;
+            }
+            
+            const stream = await this.webrtc.startMediaCall(true, true);
             this.elements.localVideo.srcObject = stream;
             this.elements.videoContainer.style.display = 'block';
             this.elements.startCall.style.display = 'none';
             this.elements.endCall.style.display = 'inline-block';
+            
+            // Update button states
+            this.updateMediaControlsState();
+            
+            console.log('✅ Video call started successfully');
         } catch (error) {
-            console.error('Failed to start call:', error);
-            alert('Failed to access camera/microphone');
+            console.error('❌ Failed to start call:', error);
+            let errorMsg = 'Failed to access camera/microphone. ';
+            
+            if (error.name === 'NotAllowedError') {
+                errorMsg += 'Please allow camera and microphone access.';
+            } else if (error.name === 'NotFoundError') {
+                errorMsg += 'No camera or microphone found.';
+            } else if (error.name === 'NotReadableError') {
+                errorMsg += 'Camera/microphone is already in use.';
+            } else {
+                errorMsg += error.message;
+            }
+            
+            alert(errorMsg);
         }
     }
 
     endCall() {
+        console.log('📞 Ending video call...');
+        
         this.webrtc.endCall();
         this.elements.localVideo.srcObject = null;
         this.elements.remoteVideo.srcObject = null;
         this.elements.videoContainer.style.display = 'none';
         this.elements.startCall.style.display = 'inline-block';
         this.elements.endCall.style.display = 'none';
+        
+        // Reset button states
+        this.elements.toggleMute.textContent = 'mute';
+        this.elements.toggleVideo.textContent = 'video';
+        
+        console.log('✅ Video call ended');
     }
 
     toggleMute() {
-        if (this.webrtc.localStream) {
-            const audioTrack = this.webrtc.localStream.getAudioTracks()[0];
-            if (audioTrack) {
-                audioTrack.enabled = !audioTrack.enabled;
-                this.elements.toggleMute.textContent = audioTrack.enabled ? '🎤 Mute' : '🔇 Unmute';
-            }
-        }
+        const isEnabled = this.webrtc.toggleAudio();
+        this.elements.toggleMute.textContent = isEnabled ? 'mute' : 'unmuted';
+        this.elements.toggleMute.className = isEnabled 
+            ? 'bg-gray-700 text-white px-3 py-2 rounded font-medium hover:bg-gray-600 transition-colors text-sm'
+            : 'bg-red-600 text-white px-3 py-2 rounded font-medium hover:bg-red-700 transition-colors text-sm';
     }
 
     toggleVideo() {
+        const isEnabled = this.webrtc.toggleVideo();
+        this.elements.toggleVideo.textContent = isEnabled ? 'video' : 'video off';
+        this.elements.toggleVideo.className = isEnabled
+            ? 'bg-gray-700 text-white px-3 py-2 rounded font-medium hover:bg-gray-600 transition-colors text-sm'
+            : 'bg-red-600 text-white px-3 py-2 rounded font-medium hover:bg-red-700 transition-colors text-sm';
+    }
+
+    updateMediaControlsState() {
+        // Update mute/video button states based on current stream
         if (this.webrtc.localStream) {
+            const audioTrack = this.webrtc.localStream.getAudioTracks()[0];
             const videoTrack = this.webrtc.localStream.getVideoTracks()[0];
+            
+            if (audioTrack) {
+                this.elements.toggleMute.textContent = audioTrack.enabled ? 'mute' : 'unmuted';
+                this.elements.toggleMute.className = audioTrack.enabled 
+                    ? 'bg-gray-700 text-white px-3 py-2 rounded font-medium hover:bg-gray-600 transition-colors text-sm'
+                    : 'bg-red-600 text-white px-3 py-2 rounded font-medium hover:bg-red-700 transition-colors text-sm';
+            }
+            
             if (videoTrack) {
-                videoTrack.enabled = !videoTrack.enabled;
-                this.elements.toggleVideo.textContent = videoTrack.enabled ? '📹 Video' : '📹 Video Off';
+                this.elements.toggleVideo.textContent = videoTrack.enabled ? 'video' : 'video off';
+                this.elements.toggleVideo.className = videoTrack.enabled
+                    ? 'bg-gray-700 text-white px-3 py-2 rounded font-medium hover:bg-gray-600 transition-colors text-sm'
+                    : 'bg-red-600 text-white px-3 py-2 rounded font-medium hover:bg-red-700 transition-colors text-sm';
             }
         }
     }

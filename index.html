@@ -45,6 +45,17 @@
                             class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-gray-500 transition-colors font-mono"
                         >
                     </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">alias</label>
+                        <input 
+                            type="text" 
+                            id="userAlias" 
+                            placeholder="your display name..." 
+                            maxlength="20"
+                            autocomplete="off"
+                            class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-gray-500 transition-colors font-mono"
+                        >
+                    </div>
                     <button 
                         id="joinRoom"
                         class="w-full bg-white text-black py-2 px-4 rounded font-medium hover:bg-gray-200 transition-colors"
@@ -123,21 +134,52 @@
                             </div>
                         </div>
                         
-                        <div class="p-3 border-t border-gray-800" id="onlineInputContainer">
-                            <div class="flex space-x-2">
-                                <input 
-                                    type="text" 
-                                    id="onlineMessageInput" 
-                                    placeholder="direct message..." 
-                                    maxlength="500"
-                                    class="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-gray-500 transition-colors font-mono text-sm"
-                                >
-                                <button 
-                                    id="sendOnlineMessage"
-                                    class="bg-white text-black px-4 py-2 rounded font-medium hover:bg-gray-200 transition-colors text-sm"
-                                >
-                                    send
-                                </button>
+                        <!-- Media Controls for Online Section -->
+                        <div id="fixed-div">
+                            <div class="border-t border-gray-800 p-3" id="onlineMediaControls">
+                                <div class="flex justify-center gap-2 mb-3">
+                                    <button
+                                            id="startCall"
+                                            class="bg-green-600 text-white px-3 py-2 rounded font-medium hover:bg-green-700 transition-colors text-sm"
+                                    >
+                                        call
+                                    </button>
+                                    <button
+                                            id="endCall"
+                                            class="hidden bg-red-600 text-white px-3 py-2 rounded font-medium hover:bg-red-700 transition-colors text-sm"
+                                    >
+                                        end
+                                    </button>
+                                    <button
+                                            id="toggleMute"
+                                            class="bg-gray-700 text-white px-3 py-2 rounded font-medium hover:bg-gray-600 transition-colors text-sm"
+                                    >
+                                        mute
+                                    </button>
+                                    <button
+                                            id="toggleVideo"
+                                            class="bg-gray-700 text-white px-3 py-2 rounded font-medium hover:bg-gray-600 transition-colors text-sm"
+                                    >
+                                        video
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="p-3 border-t border-gray-800" id="onlineInputContainer">
+                                <div class="flex space-x-2">
+                                    <input
+                                            type="text"
+                                            id="onlineMessageInput"
+                                            placeholder="direct message..."
+                                            maxlength="500"
+                                            class="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-gray-500 transition-colors font-mono text-sm"
+                                    >
+                                    <button
+                                            id="sendOnlineMessage"
+                                            class="bg-white text-black px-4 py-2 rounded font-medium hover:bg-gray-200 transition-colors text-sm"
+                                    >
+                                        send
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -195,35 +237,6 @@
                 </div>
             </div>
 
-            <!-- Media Controls -->
-            <div id="mediaControls" class="hidden border-t border-gray-800 p-3">
-                <div class="flex justify-center gap-2">
-                    <button 
-                        id="startCall"
-                        class="bg-green-600 text-white px-3 py-2 rounded font-medium hover:bg-green-700 transition-colors text-sm"
-                    >
-                        call
-                    </button>
-                    <button 
-                        id="endCall"
-                        class="hidden bg-red-600 text-white px-3 py-2 rounded font-medium hover:bg-red-700 transition-colors text-sm"
-                    >
-                        end
-                    </button>
-                    <button 
-                        id="toggleMute"
-                        class="bg-gray-700 text-white px-3 py-2 rounded font-medium hover:bg-gray-600 transition-colors text-sm"
-                    >
-                        mute
-                    </button>
-                    <button 
-                        id="toggleVideo"
-                        class="bg-gray-700 text-white px-3 py-2 rounded font-medium hover:bg-gray-600 transition-colors text-sm"
-                    >
-                        video
-                    </button>
-                </div>
-            </div>
 
             <!-- Video Container -->
             <div id="videoContainer" class="hidden border-t border-gray-800 p-3">

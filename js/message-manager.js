@@ -110,6 +110,10 @@ export class MessageManager {
             // Mark as delivered
             this.deliveredMessages.add(messageData.id);
 
+            // Get sender alias from signaling
+            const aliases = await this.signaling.getParticipantAliases();
+            const senderAlias = aliases[messageData.sender] || 'Unknown';
+
             // Notify UI
             if (this.onMessageReceived) {
                 this.onMessageReceived({
@@ -117,6 +121,8 @@ export class MessageManager {
                     text: decrypted,
                     timestamp: messageData.timestamp,
                     sender: 'remote',
+                    senderAlias: senderAlias,
+                    senderId: messageData.sender,
                     source: source
                 });
             }

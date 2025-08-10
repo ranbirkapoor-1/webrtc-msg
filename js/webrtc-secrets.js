@@ -4,9 +4,10 @@
  */
 
 export class WebRTCSecrets {
-    constructor(webrtc, crypto) {
+    constructor(webrtc, crypto, signaling = null) {
         this.webrtc = webrtc;
         this.crypto = crypto;
+        this.signaling = signaling;
         this.onSecretReceived = null;
         this.secretMessageIds = new Set();
     }
@@ -79,12 +80,25 @@ export class WebRTCSecrets {
 
             console.log('📨 WebRTC secret message received');
 
+            // Get sender alias if signaling is available
+            let senderAlias = 'Unknown';
+            if (this.signaling) {
+                try {
+                    const aliases = await this.signaling.getParticipantAliases();
+                    senderAlias = aliases[payload.sender] || 'Unknown';
+                } catch (error) {
+                    console.warn('⚠️ Could not get sender alias:', error);
+                }
+            }
+
             // Notify UI
             if (this.onSecretReceived) {
                 this.onSecretReceived({
                     id: payload.id,
                     text: decrypted,
                     timestamp: payload.timestamp,
+                    senderAlias: senderAlias,
+                    senderId: payload.sender,
                     ephemeral: true
                 });
             }
